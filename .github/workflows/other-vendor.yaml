@@ -1,0 +1,35 @@
+name: Generate other vendor tarball
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Generate vendors for release
+        required: true
+
+jobs:
+  other-vendor:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.release_tag != null && inputs.release_tag || github.event.release.tag_name }}
+    permissions:
+      contents: write
+    steps:
+      - name: Download vendor tarball
+        run: gh release download "${RELEASE_TAG}" --dir "/tmp" --pattern "sing-box-${RELEASE_TAG#v}-vendor.tar.xz"
+
+      - name: Generate new vendor tarball
+        run: |
+          cd "/tmp"
+          xz --decompress --keep "sing-box-${RELEASE_TAG#v}-vendor.tar.xz"
+          tar --delete --wildcards --file "sing-box-${RELEASE_TAG#v}-vendor.tar" "sing-box-*/vendor/github.com/sagernet/cronet-go"
+          mv "sing-box-${RELEASE_TAG#v}-vendor.tar" "sing-box-${RELEASE_TAG#v}-vendor-without-naive.tar"
+          xz --compress -9 "sing-box-${RELEASE_TAG#v}-vendor-without-naive.tar"
+          du --human-readable "sing-box-${RELEASE_TAG#v}-vendor.tar.xz" "sing-box-${RELEASE_TAG#v}-vendor-without-naive.tar.xz"
+
+      - name: Upload new vendor tarball
+        run: gh release upload "${RELEASE_TAG}" "/tmp/sing-box-${RELEASE_TAG#v}-vendor-without-naive.tar.xz"
