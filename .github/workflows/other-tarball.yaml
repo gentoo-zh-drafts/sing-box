@@ -1,0 +1,36 @@
+name: Generate other tarball
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Generate vendors for release
+        required: true
+
+jobs:
+  other-tarball:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.release_tag != null && inputs.release_tag || github.event.release.tag_name }}
+    permissions:
+      contents: write
+    steps:
+      - name: Download vendor tarball
+        run: gh release download "${RELEASE_TAG}" --dir "/tmp/work" --pattern "sing-box-${RELEASE_TAG#v}-vendor.tar.xz"
+
+      - name: Generate new tarballs
+        run: |
+          cd /tmp/work
+          xz --decompress "sing-box-${RELEASE_TAG#v}-vendor.tar.xz"
+          tar --extract --wildcards --verbose --file "sing-box-${RELEASE_TAG#v}-vendor.tar" "*/linux_*/libcronet.so" | sed -E "s:^.+/linux_(.+)/.+$:tar -cf sing-box-${RELEASE_TAG#v}-vendor-libcronet-so-\1.tar \0:;s:_musl.tar:-musl.tar:" > createtar
+          source createtar
+          tar --delete --wildcards --file "sing-box-${RELEASE_TAG#v}-vendor.tar" "*/libcronet."{a,so}
+          mv "sing-box-${RELEASE_TAG#v}-vendor.tar" "sing-box-${RELEASE_TAG#v}-vendor-lite.tar"
+
+      - name: Compress tarballs
+        run: find /tmp/work -name "*.tar" -exec xz --compress -9 {} \;
+
+      - name: Upload new tarballs
+        run: gh release upload "${RELEASE_TAG}" /tmp/work/*.tar.xz
