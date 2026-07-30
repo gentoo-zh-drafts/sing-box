@@ -6,14 +6,18 @@ on:
       release_tag:
         description: Generate vendors for release
         required: true
+  workflow_run:
+    workflows: ["Create golang vendor dist"]
+    types: [completed]
 
 jobs:
   other-tarball:
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      RELEASE_TAG: ${{ inputs.release_tag != null && inputs.release_tag || github.event.release.tag_name }}
+      RELEASE_TAG: ${{ inputs.release_tag != null && inputs.release_tag || github.event.workflow_run.head_branch }}
     permissions:
       contents: write
     steps:
@@ -33,4 +37,4 @@ jobs:
         run: find /tmp/work -name "*.tar" -exec xz --compress -9 {} \;
 
       - name: Upload new tarballs
-        run: gh release upload "${RELEASE_TAG}" /tmp/work/*.tar.xz
+        run: gh release upload --clobber "${RELEASE_TAG}" /tmp/work/*.tar.xz
