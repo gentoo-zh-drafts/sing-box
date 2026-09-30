@@ -1,4 +1,5 @@
 name: Generate other tarball
+run-name: sing-box ${{ inputs.release_tag || github.event.workflow_run.head_branch }}
 
 on:
   workflow_dispatch:
